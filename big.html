@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SonZsec — Trace (Android)</title>
+<style>
+  :root{
+    --bg:#000;
+    --panel:#0d0d0d;
+    --accent:#ff2b2b;
+    --muted:#888;
+    --green:#00ff00;
+    --touch:48px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);font-family:monospace;color:#fff;-webkit-tap-highlight-color:transparent;}
+  
+  .app{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;
+    background:#050505;
+  }
+
+  .card-key{
+    width:100%;max-width:380px;border-radius:10px;
+    background:var(--panel);
+    border:1px solid rgba(255,43,43,0.4);
+    padding:16px 14px;
+  }
+  .head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .logo{
+    width:46px;height:46px;border-radius:8px;background:#2b0000;
+    display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;color:var(--accent);
+    border:1px solid rgba(255,43,43,0.4);
+  }
+  .meta h1{font-size:15px;color:#fff;margin-bottom:2px}
+  .meta p{font-size:11px;color:var(--muted)}
+
+  .system-info{
+    font-size:11px;color:var(--muted);background:#000;padding:8px;border-radius:6px;
+    border:1px solid rgba(255,255,255,0.08);margin-bottom:10px;line-height:1.4;
+  }
+  .system-info span{color:var(--green);font-weight:bold;}
+
+  .key-input-wrap{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .key-input-wrap input{
+    width:100%;height:var(--touch);padding:8px 10px;border-radius:8px;background:#000;
+    border:1px solid rgba(255,43,43,0.4);color:var(--green);font-family:monospace;font-size:12px;outline:none;
+  }
+  .btn-unlock{
+    height:var(--touch);width:100%;border-radius:8px;background:var(--accent);
+    color:#fff;border:none;font-weight:bold;font-size:13px;cursor:pointer;
+  }
+  .btn-unlock:active{background:#b30000}
+  .btn-unlock:disabled{background:#444;color:#888;cursor:not-allowed;}
+
+  .error-msg{
+    font-size:11px;color:var(--accent);line-height:1.4;margin-top:10px;padding:8px;
+    background:rgba(255,0,0,0.1);border:1px solid rgba(255,43,43,0.3);border-radius:6px;
+    display:none;
+  }
+
+  .valid-blink{
+    font-size:12px;color:var(--green);font-weight:bold;margin-top:10px;text-align:center;
+    animation: blinker 0.4s linear infinite;display:none;
+  }
+  @keyframes blinker{ 50%{opacity:0;} }
+
+  #trace{
+    position:fixed;inset:0;padding:12px;display:none;flex-direction:column;gap:8px;
+    background:#000;color:var(--green);
+  }
+  #trace.show{display:flex;}
+  .trace-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .trace-brand{display:flex;align-items:center;gap:8px}
+  .trace-brand .logo-sm{width:36px;height:36px;border-radius:6px;background:#2b0000;display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:bold;font-size:14px}
+  .trace-title{font-size:14px;color:#fff;font-weight:bold}
+  .trace-sub{font-size:10px;color:var(--muted)}
+
+  .menu-tabs{ display:flex;gap:4px;margin-top:2px;overflow-x:auto;padding-bottom:2px; }
+  .tab-btn{
+    flex:1;min-width:65px;padding:8px 2px;border-radius:6px;background:#111;border:1px solid rgba(255,43,43,0.3);
+    color:var(--muted);font-weight:bold;font-size:10px;cursor:pointer;text-align:center;white-space:nowrap;
+  }
+  .tab-btn.active{ background:var(--accent);color:#fff;border-color:var(--accent); }
+
+  .controls{display:flex;gap:6px;align-items:center;margin-top:4px}
+  .controls input[type="text"], .controls select{
+    flex:1;height:var(--touch);padding:8px 10px;border-radius:8px;background:#0d0d0d;
+    border:1px solid rgba(255,43,43,0.3);color:var(--green);font-family:monospace;font-size:12px;outline:none;
+  }
+  .btn{
+    height:var(--touch);padding:0 12px;border-radius:8px;background:var(--accent);
+    color:#fff;border:none;font-weight:bold;font-size:12px;cursor:pointer;
+  }
+  .btn.ghost{background:transparent;border:1px solid rgba(255,43,43,0.3);color:var(--muted)}
+  .btn.sm-copy{
+    height:var(--touch);padding:0 8px;border-radius:8px;background:#111;
+    border:1px solid var(--green);color:var(--green);font-weight:bold;font-size:10px;cursor:pointer;
+  }
+  .btn.sm-copy:active{background:var(--green);color:#000;}
+
+  #out{
+    flex:1;background:#050505;border-radius:8px;padding:10px;font-family:monospace;font-size:11px;color:var(--green);overflow:auto;border:1px solid rgba(0,255,0,0.2);
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .marker{color:var(--accent);font-weight:bold}
+  .note{color:var(--muted);font-size:11px}
+</style>
+</head>
+<body>
+
+  <!-- KEY SYSTEM LOCK SCREEN -->
+  <div class="app" id="keyScreen">
+    <div class="card-key">
+      <div class="head">
+        <div class="logo">SZ</div>
+        <div class="meta">
+          <h1>SonZsec Access</h1>
+          <p>Masukkan API Key Sistem</p>
+        </div>
+      </div>
+
+      <div class="system-info">
+        IP ADDRESS ANDA : <span id="myIpAddress">Detecting...</span><br>
+        KONEKSI INTERNET: <span id="netType">Detecting...</span> (<span id="netStatus">ONLINE</span>)<br>
+        WAKTU (WIB)     : <span id="clockWib">00:00:00 WIB</span><br>
+        USER AGENT ANDA : <span id="uaDevice" style="word-break:break-all;">Loading...</span>
+      </div>
+
+      <div class="key-input-wrap">
+        <input id="apiKeyInput" type="text" placeholder="Paste API Key di sini..." />
+        <button class="btn-unlock" id="unlockBtn">UNLOCK ACCESS</button>
+      </div>
+
+      <div class="valid-blink" id="validBlink">>>> API KEY VALID! REDIRECTING IN <span id="delaySec">10</span>s <<<</div>
+      <div class="error-msg" id="errorMsg">
+        Sorry, Anda membutuhkan API Key untuk memasuki halaman ini.<br><br>
+        Hubungi admin:<br>
+        • +6289502289715<br>
+        • +62895365459805
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACE SYSTEM -->
+  <div id="trace">
+    <div class="trace-top">
+      <div class="trace-brand">
+        <div class="logo-sm">SZ</div>
+        <div>
+          <div class="trace-title">SONZSEC TRACE</div>
+          <div class="trace-sub">Realtime database console</div>
+        </div>
+      </div>
+      <div class="note"><span class="marker">PREMIUM</span></div>
+    </div>
+
+    <!-- 6 Menu Tabs (Termasuk Spotify) -->
+    <div class="menu-tabs">
+      <button class="tab-btn active" id="tabPhone"> Phone Lookup</button>
+      <button class="tab-btn" id="tabDana"> DANA Logs</button>
+      <button class="tab-btn" id="tabNetflix"> Netflix Logs</button>
+      <button class="tab-btn" id="tabSpotify"> Spotify Logs</button>
+      <button class="tab-btn" id="tabPb"> PB Logs</button>
+      <button class="tab-btn" id="tabTiktok"> TikTok Logs</button>
+    </div>
+
+    <div class="controls">
+      <label for="phone" class="note" id="inputLabel" style="min-width:38px">Phone</label>
+      
+      <!-- Input Telepon -->
+      <input id="phone" type="text" placeholder="+62..." />
+      
+      <!-- Select Kategori Paket Netflix -->
+      <select id="netflixSelect" style="display:none;">
+        <option value="Premium (UK)">Premium (UK)</option>
+        <option value="Premium">Premium</option>
+        <option value="Standard">Standard</option>
+        <option value="Standard with Ads">Standard with Ads</option>
+        <option value="Basic">Basic</option>
+        <option value="Premium Extra Member">Premium Extra Member</option>
+      </select>
+
+      <!-- Select Kategori Spotify -->
+      <select id="spotifySelect" style="display:none;">
+        <option value="Premium Individual">Premium Individual (ID)</option>
+      </select>
+
+      <!-- Select Kategori Point Blank -->
+      <select id="pbSelect" style="display:none;">
+        <option value="Low">Low EXP (0 - 10k EXP)</option>
+        <option value="Medium">Medium EXP (10k - 100k EXP)</option>
+        <option value="High">High EXP (> 100k EXP / High Rank)</option>
+      </select>
+
+      <!-- Select Kategori TikTok -->
+      <select id="tiktokSelect" style="display:none;">
+        <option value="HighFollowers">Followers Banyak (> ??????)</option>
+        <option value="LowFollowers">Followers Dikit (&lt; 609 Pengikut)</option>
+      </select>
+
+      <button class="btn" id="traceBtn">TRACE</button>
+      <button class="btn ghost" id="clearBtn">CLEAR</button>
+      <button class="btn sm-copy" id="copyBtn" style="display:none;"> COPY</button>
+    </div>
+
+    <div id="out"></div>
+  </div>
+
+<script>
+(function() {
+  const CORRECT_KEY = "%7B%22supplementals%22%3A%7B%22muted%22%3Atrue%7D%7D";
+
+  const keyScreen = document.getElementById('keyScreen');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const unlockBtn = document.getElementById('unlockBtn');
+  const errorMsg = document.getElementById('errorMsg');
+  const validBlink = document.getElementById('validBlink');
+  const delaySec = document.getElementById('delaySec');
+  const trace = document.getElementById('trace');
+  const clockWib = document.getElementById('clockWib');
+  const uaDevice = document.getElementById('uaDevice');
+  const myIpAddress = document.getElementById('myIpAddress');
+  const netType = document.getElementById('netType');
+  const netStatus = document.getElementById('netStatus');
+
+  uaDevice.innerText = navigator.userAgent;
+
+  /* ---------- Detection Network / Internet Info ---------- */
+  function updateNetworkInfo() {
+    const isOnline = navigator.onLine;
+    netStatus.innerText = isOnline ? "ONLINE" : "OFFLINE";
+    netStatus.style.color = isOnline ? "var(--green)" : "var(--accent)";
+
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn) {
+      let type = conn.effectiveType ? conn.effectiveType.toUpperCase() : 'UNKNOWN';
+      if (conn.type) {
+        type += ` (${conn.type.toUpperCase()})`;
+      }
+      netType.innerText = type;
+    } else {
+      netType.innerText = isOnline ? "SELULER/WIFI" : "TERPUTUS";
+    }
+  }
+
+  window.addEventListener('online', updateNetworkInfo);
+  window.addEventListener('offline', updateNetworkInfo);
+  updateNetworkInfo();
+
+  /* ---------- Audio Management ---------- */
+  const DIRECT_AUDIO_URL = 'https://mp3tourl.com/audio/1788253672094-61d427af-f8a9-4170-90d8-ec1ed92419a2.mp3';
+
+  const bgMusic = new Audio(DIRECT_AUDIO_URL);
+  bgMusic.loop = true;
+
+  function startMusic() {
+    bgMusic.play().catch(() => {});
+  }
+
+  startMusic();
+
+  document.addEventListener('click', function initAudio() {
+    startMusic();
+    document.removeEventListener('click', initAudio);
+  }, { once: true });
+
+  // Realtime IP Fetching
+  fetch('https://api.ipify.org?format=json')
+    .then(res => res.json())
+    .then(data => { myIpAddress.innerText = data.ip; })
+    .catch(() => { myIpAddress.innerText = 'Unavailable'; });
+
+  function updateClock() {
+    const now = new Date();
+    const options = { timeZone: 'Asia/Jakarta', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    clockWib.innerText = new Intl.DateTimeFormat('id-ID', options).format(now) + ' WIB';
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  let attempts = parseInt(localStorage.getItem('key_attempts') || '0');
+  let blockUntil = parseInt(localStorage.getItem('key_block_until') || '0');
+
+  function checkBlockStatus() {
+    const now = Date.now();
+    if (now < blockUntil) {
+      const remainingSec = Math.ceil((blockUntil - now) / 1000);
+      const remainingMin = Math.ceil(remainingSec / 60);
+      apiKeyInput.disabled = true;
+      unlockBtn.disabled = true;
+      errorMsg.style.display = 'block';
+      errorMsg.innerHTML = ` <strong>USER AGENT DIBLOKIR SEMENTARA!</strong><br>` +
+                           `Terlalu banyak percobaan gagal (${attempts}x).<br>` +
+                           `Coba lagi dalam <strong>${remainingMin} menit (${remainingSec}d)</strong>.<br><br>` +
+                           `Hubungi Admin:<br>• https://t.me/luzseccc<br>• +62895365459805`;
+      return true;
+    } else if (blockUntil !== 0 && now >= blockUntil) {
+      localStorage.removeItem('key_block_until');
+      localStorage.setItem('key_attempts', '0');
+      attempts = 0;
+      apiKeyInput.disabled = false;
+      unlockBtn.disabled = false;
+      errorMsg.style.display = 'none';
+    }
+    return false;
+  }
+
+  checkBlockStatus();
+  setInterval(checkBlockStatus, 1000);
+
+  function checkKey() {
+    startMusic();
+    if (checkBlockStatus()) return;
+
+    const inputVal = apiKeyInput.value.trim();
+
+    if (inputVal === CORRECT_KEY) {
+      localStorage.setItem('key_attempts', '0');
+      errorMsg.style.display = 'none';
+      validBlink.style.display = 'block';
+      apiKeyInput.disabled = true;
+      unlockBtn.disabled = true;
+
+      let countdown = 10;
+      delaySec.innerText = countdown;
+
+      const timer = setInterval(() => {
+        countdown--;
+        delaySec.innerText = countdown;
+        if (countdown <= 0) {
+          clearInterval(timer);
+          keyScreen.style.display = 'none';
+          trace.classList.add('show');
+          document.getElementById('phone').focus();
+        }
+      }, 1000);
+
+    } else {
+      attempts++;
+      localStorage.setItem('key_attempts', attempts.toString());
+
+      if (attempts >= 10) {
+        blockUntil = Date.now() + (10 * 60 * 1000);
+        localStorage.setItem('key_block_until', blockUntil.toString());
+        checkBlockStatus();
+      } else if (attempts >= 5) {
+        blockUntil = Date.now() + (5 * 60 * 1000);
+        localStorage.setItem('key_block_until', blockUntil.toString());
+        checkBlockStatus();
+      } else {
+        validBlink.style.display = 'none';
+        errorMsg.style.display = 'block';
+        errorMsg.innerHTML = `Sorry, Anda membutuhkan API Key untuk memasuki halaman ini. (Gagal: ${attempts}/5)<br><br>` +
+                             `Hubungi Admin Jika Tidak Memiliki Api Key:<br>• https://t.me/luzseccc<br>• +62895365459805`;
+      }
+    }
+  }
+
+  unlockBtn.onclick = checkKey;
+  apiKeyInput.onkeydown = function(e) { if (e.key === 'Enter') checkKey(); };
+
+/* ---------- Database Phone ---------- */
+  const phoneDatabase = {
+    "+6285264688003": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6285264688003\nLocal Format   : 0852-6468-8003\nValid          : true\nCarrier        : Telkomsel\nCountry        : ID\nRegion         : Indonesia\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNIK            : 1377037012670001\nProvinsi       : SUMATERA BARAT\nKabupaten/Kota : KOTA PARIAMAN\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nFound In       : 3 databases\n- Leak 2017 : Email + Phone\n- Leak 2019 : NIK + Address\n- Leak 2021 : Full Profile + Activity Logs\n`
+    },
+    "+628985293238": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +628985293238\nLocal Format   : 0898-5293-238\nValid          : true\nCarrier        : Hutchison 3 Indonesia\nCountry        : ID\nRegion         : Indonesia\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : Kiki Tuantry\nTanggal Lahir  : 1999-09-04\nJenis Kelamin  : perempuan\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nFound In       : 2 databases\n- Leak 2019 : Passport + Registration\n- Leak 2020 : Activity Logs + Personal Info\n`
+    },
+    "+6282113568293": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6282113568293\nLocal Format   : 0821-1356-8293\nValid          : true\nCarrier        : Telkomsel\nCountry        : ID\nRegion         : Jawa Barat\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : Rini / Teguh\nNick           : Kiki Tuantry\nAlamat         : Komplek Sesko TNI Blok K29 Jl. R.A.A Martanegara No.11,\n                 Lengkong, Kota Bandung, Jawa Barat 40263\nPerusahaan     : AGEN WPL BEKASI PENDIDIKAN II TAMBUN SELATAN\nNama Perusahaan: Irwan\nTanggal        : 2021-02-02\nAktivitas      : 2021-01-29\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nKategori       : Jaket\nJenis          : mta_ttk_aktif\nUkuran         : 32x30x8\nHarga          : 400000\nAlamat Kirim   : Jawa Barat, Kota Bandung, Lengkong\nStatus         : Selesai\n`
+    },
+    "+6288229953370": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6288229953370\nLocal Format   : 0882-2995-3370\nValid          : true\nCarrier        : XL Axiata\nCountry        : ID\nRegion         : Jawa Tengah\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : BAPAK TAPE / IKHSAN QOIRI\nNick           : KIK TAUNTRY\nAlamat         : Dukuh Jiworagan RT 01/13 Kalangan, Pedan, Klaten, Jateng\nPerusahaan     : AGEN WPL BEKASI TAMBUN KEBON KELAPA\nNama Perusahaan: Wahyu Taufik Efendi\nTanggal        : 2021-01-23\nAktivitas      : 2021-01-07\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nKategori       : Baju\nJenis          : missingditerima\nUkuran         : 30x25x8\nHarga          : 199000\nAlamat Kirim   : Jawa Tengah, Kab. Klaten, Pedan\nStatus         : Selesai\n`
+    },
+    "+628991614133": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +628991614133\nLocal Format   : 0899-1614-133\nValid          : true\nCarrier        : Smartfren\nCountry        : ID\nRegion         : Jawa Barat\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : MULYANA CAHYA\nNick           : KIKI TUANTRY\nAlamat         : RM Brebes, Jl. Raya Lembang No.272, Lembang, Kab. Bandung Barat\nPerusahaan     : AGEN WPL BEKASI TAMBUN KEBON KELAPA\nNama Perusahaan: Hendra\nTanggal        : 2021-11-09\nAktivitas      : 2021-11-09\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nKategori       : Baju\nJenis          : mta_ttk_aktif\nUkuran         : 30x20x10\nHarga          : 199000\nAlamat Kirim   : Jawa Barat, Kab. Bandung Barat\nStatus         : Selesai\n`
+    },
+    "+6287755706969": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6287755706969\nLocal Format   : 0877-5570-6969\nValid          : true\nCarrier        : Indosat Ooredoo\nCountry        : ID\nRegion         : Jawa Barat\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : FICKY TUANTRY\nNick           : INDRA R\nAlamat         : Jl. H. Abdul Ahab RT 02/01 Setia Parma, Tambun Selatan, Bekasi\nPerusahaan     : AGEN WPL MALANG PENANGGUNGAN MAYJEN PANJAITAN\nNama Perusahaan: Ahmad Fauzi\nTanggal        : 2021-09-17\nAktivitas      : 2021-09-17\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nKategori       : Jaket\nJenis          : mta_ttk_aktif\nUkuran         : 1x1x1\nHarga          : 199000\nAlamat Kirim   : Jawa Barat, Kab. Bekasi\nStatus         : Selesai\n`
+    },
+    "+62895322958092": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +628113752200\nLocal Format   : 0895-3229-58092\nValid          : true\nCarrier        : Telkomsel\nCountry        : ID\nRegion         : Kabanjahe/Sibolangit\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : Adam Akbar Prasetya\nTanggal Lahir  : 17-05-2002\nJenis Kelamin  : laki-laki\nAlamat         : H Sarimun RT 8 RW 1, Kembangan Selatan,\n                 Kembangan, Kota Adm. Jakarta Barat, DKI Jakarta\nDaerah         : Kembangan Selatan\nNIK.           : 3173081705020001\nWilayah        : Kota Adm. Jakarta Barat\nLokasi          : Kembangan\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nFound In       : 2 databases\n- Leak 2020 : Personal Identity\n- Leak 2022 : Address + Passport Number\n`
+    },
+    "+6281289816972": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6281289816972\nLocal Format   : 0812-8981-6972\nValid          : true\nCarrier        : Telkomsel\nCountry        : ID\nRegion         : Jakarta/Tangerang\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : Jatmiko\nTanggal Lahir  : 17-04-1982\nJenis Kelamin  : laki-laki\nAlamat         : Jl. Bambu Pd. Petung RT 2 RW 5,\n                 Jurangmangu Timur, Pondok Aren,\n                 Kota Tangerang Selatan, Banten\nDaerah         : Jurangmangu Barat\nNIK.               : 3674031704820009\nWilayah        : Kota Tangerang Selatan\nLokasi         : Pondok Aren\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nFound In       : 2 databases\n- Leak 2018 : Personal Identity\n- Leak 2021 : Address + Passport Number\n`
+    },
+    "+6285810492823": {
+      phoneData: `[ PHONE DATA ]\n-------------------------------------------------\nFormatted      : +6285810492823\nLocal Format   : 0858-1049-2823\nValid          : true\nCarrier        : Telkomsel\nCountry        : ID\nRegion         : Jakarta Barat\n`,
+      personalData: `[ PERSONAL DATA ]\n-------------------------------------------------\nNama Lengkap   : M. Rizki\nTanggal Lahir  : 09-03-1995\nJenis Kelamin  : laki-laki\nAlamat         : Pesing Gadog\nDaerah         : Kedoya Utara\nNIK.               : 3173050903950007\nWilayah        : Jakarta Barat\n`,
+      records: `[ DATABASE RECORDS ]\n-------------------------------------------------\nFound In       : 1 database\n- Leak 2021 : Personal Identity + Address\n`
+    }
+  };
+
+  /* ---------- Database DANA Logs ---------- */
+  const danaDatabase = {
+      "+6282220682474": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6282220682474\nCarrier        : Telkomsel (ID)\nIP Address     : 180.252.12.89 [ID - Jakarta, Indonesia]\nServer URL     : https://m.dana.id/gateway/v1/auth\nUser-Agent     : Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 889955\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://render.alipay.com/p/y/dana/\nStatus : ACCESS_GRANTED`,
+    "+6285709077224": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285709077224\nCarrier        : Indosat Ooredoo (ID)\nIP Address     : 114.125.45.102 [ID - Surabaya, Indonesia]\nServer URL     : https://g.alipayplus.com/render/dana\nUser-Agent     : Mozilla/5.0 (Linux; Android 12; CPH2211) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 171299\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://m.dana.id/\nStatus : ACCESS_GRANTED`,
+    "+62895393338599": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +62895393338599\nCarrier        : Hutchison 3 Indonesia (ID)\nIP Address     : 182.3.99.214 [ID - Bandung, Indonesia]\nServer URL     : https://link.dana.id/api/v2/secure\nUser-Agent     : Mozilla/5.0 (Linux; Android 11; M2007J20CG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 100506\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://dana.onelink.me/\nStatus : ACCESS_GRANTED`,
+    "+6287843240024": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6287843240024\nCarrier        : XL Axiata (ID)\nIP Address     : 112.215.170.44 [ID - Medan, Indonesia]\nServer URL     : https://www.danaid.link/gateway/oauth\nUser-Agent     : Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 979797\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://render.alipay.com/\nStatus : ACCESS_GRANTED`,
+    "+6285180801691": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285180801691\nCarrier        : Telkomsel / By.U (ID)\nIP Address     : 180.244.133.12 [ID - Semarang, Indonesia]\nServer URL     : https://m.dana.id/gateway/v1/auth\nUser-Agent     : Mozilla/5.0 (Linux; Android 12; RMX3085) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 150705\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://link.dana.id/\nStatus : ACCESS_GRANTED`,
+    "+6285896654337": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285896654337\nCarrier        : Indosat Ooredoo (ID)\nIP Address     : 114.124.201.78 [ID - Tangerang, Indonesia]\nServer URL     : https://g.alipayplus.com/render/dana\nUser-Agent     : Mozilla/5.0 (Linux; Android 13; 2201116SG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 211103\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://m.dana.id/\nStatus : ACCESS_GRANTED`,
+    "+6282225096158": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6282225096158\nCarrier        : Telkomsel (ID)\nIP Address     : 180.250.67.110 [ID - Bekasi, Indonesia]\nServer URL     : https://www.danaid.link/gateway/oauth\nUser-Agent     : Mozilla/5.0 (Linux; Android 11; V2027) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 428010\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://dana.onelink.me/\nStatus : ACCESS_GRANTED`,
+    "+6285749441894": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285749441894\nCarrier        : Indosat Ooredoo (ID)\nIP Address     : 125.160.88.19 [ID - Depok, Indonesia]\nServer URL     : https://render.alipay.com/p/y/dana/\nUser-Agent     : Mozilla/5.0 (Linux; Android 12; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 151996\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://link.dana.id/\nStatus : ACCESS_GRANTED`,
+    "+6285799552552": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285799552552\nCarrier        : Indosat Ooredoo (ID)\nIP Address     : 114.122.109.55 [ID - Makassar, Indonesia]\nServer URL     : https://m.dana.id/gateway/v1/auth\nUser-Agent     : Mozilla/5.0 (Linux; Android 10; CPH1909) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 000111\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://g.alipayplus.com/\nStatus : ACCESS_GRANTED`,
+    "+6285295367780": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6285295367780\nCarrier        : Telkomsel (ID)\nIP Address     : 180.241.90.14 [ID - Palembang, Indonesia]\nServer URL     : https://link.dana.id/api/v2/secure\nUser-Agent     : Mozilla/5.0 (Linux; Android 13; M2101K6G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 198080\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://www.danaid.link/\nStatus : ACCESS_GRANTED`,
+    "+6287727686200": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6287727686200\nCarrier        : XL Axiata (ID)\nIP Address     : 112.215.89.201 [ID - Yogyakarta, Indonesia]\nServer URL     : https://render.alipay.com/p/y/dana/\nUser-Agent     : Mozilla/5.0 (Linux; Android 12; RMX3393) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 061206\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://m.dana.id/\nStatus : ACCESS_GRANTED`,
+    "+6282142470302": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6282142470302\nCarrier        : Telkomsel (ID)\nIP Address     : 180.254.12.90 [ID - Malang, Indonesia]\nServer URL     : https://g.alipayplus.com/render/dana\nUser-Agent     : Mozilla/5.0 (Linux; Android 11; SM-A205F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 190498\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://dana.onelink.me/\nStatus : ACCESS_GRANTED`,
+    "+6283151323077": `[ SYSTEM INTERCEPT REPORT ]\n-------------------------------------------------\nTarget Node    : +6283151323077\nCarrier        : AXIS (ID)\nIP Address     : 112.215.44.180 [ID - Denpasar, Indonesia]\nServer URL     : https://m.dana.id/gateway/v1/auth\nUser-Agent     : Mozilla/5.0 (Linux; Android 10; Vivo 1904) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Mobile Safari/537.36\nSecurity State : 2FA_OTP_INTERCEPTED & FACE_BYPASS_ACTIVE\nAuth PIN       : 201010\nBiometric Log  : FACE_VERIFICATION_OVERRIDDEN [100%]\nOTP Source     : WHATSAPP_OTP & CELLULAR_SMS_INTERCEPTED\n\n[ SECURITY NOTICE ]\n-------------------------------------------------\nWARNING: Target number triggered 2FA/OTP (WA/SMS) and Face Biometric barrier.\nPayload executed via https://link.dana.id/\nStatus : ACCESS_GRANTED`
+  };
+
+/* ---------- Database Netflix ---------- */
+  const netflixDatabase = {
+    "Premium (UK)": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : kid\nEmail          : a.coleman1718@gmail.com\nPhone          : +447368199415\nEmail Verified : Yes\nCreated        : January 2023\nCountry        : United Kingdom \n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Premium | UHD | 4 Streams\nPayment Method : VIRGIN_MEDIA_BILLED\nProfiles       : kid\nExpire Date    : 2027-08-04\nDays Left      : 348 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tTRUE\t1797801186\tdsca\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1816290218\tnfvdid\tBQFmAAEBEOV-RnUR5IeNal1wh9LFandgGnYEyhn9AuYfy1bdwjrLaue3bUXLDjM-zgoHnXgb3jmZZlWj676utMoAN3C3AtWfGd6LBRwB2jIeyn1tzA_urjyHlIpbST6sse6H0MQ4_pP8Tpx1q4aeouCcE43UV4Sm\n.netflix.com\tTRUE\t/\tFALSE\t1816290224\tOptanonAlertBoxClosed\t2026-07-22T21:03:44.046Z\n.netflix.com\tTRUE\t/\tTRUE\t1817402924\tNetflixId\tct%3DBgjHlOvcAxL9A9Ao9n6L05aNaUgPt81QQd3gzmBkViPzPKshltvwA6tHqGuoGpR7kHuQDFdH6sr6X4u89OYqpT16fAKHx8vaIpHALoms128VBA_8R_OfIyudoPGP1nATvxM7vHYXidP5dgC5j1pz71X54DTzCj0UDyfhrNr1FPEKEc6vMiPceb0P2Q0W5obDnnwPN06r7pnFyYEDsISQQt9zhBpSSU8BjhhaRWwBVSgJjFfc3qSmouoB3mHNKB2wzvUhgGlG_3F4IcNxD9Y1w3GEd6dJrWOAtt9u65sombwyhAUB5LXu0hrcvHbFZyFFKviDU-8miTkNRnY9ImeR45OmoQp3NaDM1bL0v6RhGNWnVd_SUIX_ptZohKpfbtknbNXUlBpUJv-9HC7yZ21xTR_OqNSv1ssKm3-PBuUYMcmn2fwZqiIhekAUSx6AxUvqVLgrF_sc74PFgdc3n1vpBSYy6Pki939YslPMqX3WONM-j7SRfw4EBvAunR3gyHKyFYhFE8xlZ_IYBwNO7QTZPGWUPZHMe409s-Q7dmmoZMl6J6SPV7VXvNaOmp0yNryZ3wfkw6bfILuKO2IlpgdfVJJ8QpoT3P7UNmVLjJBAepyJ1KsFxoK3-tYEQVWsyCrboxybJb4eatGfaGC8XWxE_nB3BIa5uUXDERtAZCoKRXkvzp1iJkBxGAYiDgoMakzThc6wVdlV_geq%26ch%3DAQEAEAABABSEAHIdyZbvp5G6p4ondPbMj_MpfwwY9N4.%26v%3D3%26pg%3D7VQEG2TLDBGL3NFRANG3LAED4Y\nwww.netflix.com\tFALSE\t/\tFALSE\t1785953326\tOTSessionTracking\t87b6a5c0-0104-4e96-a291-092c11350111\n.netflix.com\tTRUE\t/\tTRUE\t1817402924\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABQ-1cGLDPgzfmc_W_nGS6_r2tDqJQFkJAY.%26dt%3D1785866922363\n.netflix.com\tTRUE\t/\tTRUE\t1785953326\tgsid\t47fd158f-3bda-45aa-9138-33ed89f66995\n.netflix.com\tTRUE\t/\tFALSE\t1817416338\tOptanonConsent\tisGpcEnabled=0&datestamp=Tue+Aug+04+2026+22%3A52%3A18+GMT%2B0100+(British+Summer+Time)&version=202604.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=91b61e7c-034d-42f1-9993-c15bc194dd9c&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&intType=1&geolocation=GB%3BENG&AwaitingReconsent=false&isDntEnabled=0&prevHadToken=0\n`
+    },
+    "Premium": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : Denji Mori\nEmail          : adandimartadinata@gmail.com\nPhone          : +6281268569536\nEmail Verified : Yes\nCreated        : February 2025\nCountry        : Indonesia \n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Premium | UHD | 4 Streams\nPayment Method : CC (0914)\nProfiles       : Denji Mori\nExpire Date    : 2026-08-25\nDays Left      : 3 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tFALSE\t1809908703\tnfvdid\tBQFmAAEBEBNF6fBe_L6mhWHkNnfx8thggOT9cDNPmHGGmr1-i481TTVesng_SY9y1ZG1fbx56MPxfjJbJ7H9YO8h1ThwxQUwXBTgCHqBArK0eBUft-FtGM5Va046RN8IWP0E09SUJIjyJEgYaMnSwjKbeiWa78Lj\n.netflix.com\tTRUE\t/\tTRUE\t1813272466\tNetflixId\tct%3DBgjHlOvcAxKPBM0cw0awfq9MRzpA5l8Fd6wkvu20HNlPlBQkjCE7YqwbEjBDcuIJ0L1zcKHVkVDZKMty2sFVri1h9AkGyMnEoKVX0WPEV7bdVEfFhn5zOw2lcGWZ19HaSzQXtO8hpsjSnAld7sxWSwJYrOVVfVCtfUcV6UH9YOVfHq02EUcCcsXg1WgXIDmJF8MCCmReqTKqNOxv3AtaJ6xi_C1kJJkm8RUnnuDXDj1Pj14R7D0kZAr-_HNNZWQEG_-q1QNdc2gzx4W8xkS1LALdzFC4I0PFap_GwKo991DkQxCXIw7di-sPk1L2a-9LVyKigCzvA5emBW-qrp14FN9_Nd6t-VVsS4CSrpcUYoOKxVA1zVej43cCgHn3fokrqCbOKoO-cMTQNG97VA8ZS2Fv-NW2Gyl0F3RKzqeb4yz2T4yuQNr8ZyfVCvyqql5fkwUQ6XueXNInS0nVviNOfIKh9HoztmjssIhXT9m2xbGRFCofDQeZCcXkguASKdFms8E7_TIG8bipLUIMFxodNsAVo5f7WCgUOqfJywYJXPEjOVMBeBbi14tl8v_uNroD8AKalXL_csf6Y9acuttWF_bld-g9AW1B2a2LV2CzCstwedb76iM390bzgY7VnXXRN-cq5MRYTjHjnaCF8HM43z4vNUHAk7MLSQDcggvVzOHw6raFikwqMvHGq20yglHjYgUYtsS4Vxt2GAYiDgoM89epzfJKJmX7F_3X%26ch%3DAQEAEAABABQvrCMm-RAb8WZ5SHGmAo4lK_ejYVZu2TY.%26v%3D3%26pg%3DZLJHDCGUWFBCDN2NZI5I25YQKE\n.netflix.com\tTRUE\t/\tFALSE\t1813272471\tOptanonConsent\tisGpcEnabled=0&datestamp=Thu+Jun+18+2026+05%3A47%3A51+GMT%2B0700+(Western+Indonesia+Time)&version=202604.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=5c0c8ec4-b56a-4e66-8602-3c4dd9a7339b&interactionCount=1&isAnonUser=1&prevHadToken=0&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&crTime=1774813096313&AwaitingReconsent=false&isDntEnabled=0\n.netflix.com\tTRUE\t/\tTRUE\t1813272466\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABTbVGeKuPJE3LtR-vBya0YWWZmNiBSRztI.%26dt%3D1781736466137\n.netflix.com\tTRUE\t/\tFALSE\t1789512467\tnetflix-sans-bold-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1789512467\tnetflix-sans-normal-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1789513528\tpas\t%7B%22supplementals%22%3A%7B%22muted%22%3Atrue%7D%7D\n`
+    },
+    "Basic": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : nsarilombontari\nEmail          : nsarilombontari@gmail.com\nPhone          : +6285182430677\nEmail Verified : Yes\nCreated        : July 2026\nCountry        : Indonesia \nChecked At     : 2026-08-21 17:05:18\n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Basic | HD720p | 1 Streams\nPayment Method : MOBILE_WALLET\nProfiles       : nsarilombontari\nExpire Date    : 2026-08-30\nDays Left      : 8 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tFALSE\t1805983567\tnfvdid\tBQFmAAEBEPwYKkqivzcP876k0lNnUqxgouWUx3pVHdd-Bp8Qt7NFN-hQHOTQ9Z2Uumyk5_l4v3tFbkGb3T-D7IjrpGu7IgIQuq-DuA_KvQI29Vo6NGUgDHr-JG2esk1_Og16GkNobwf9r5Kw8e8fwReYy416Dqcx\n.netflix.com\tTRUE\t/\tTRUE\t1814105766\tNetflixId\tct%3DBgjHlOvcAxKLBHmyoTyU0_7XmzqPXPHb7SsklbIV-O6097ON-JIv58dv6y366tk3m9HhxjKyAofXjCxe811VO_diMCorR9qNVbTXNy1tqJVCwPPwLPYHVOrMr0sx5K8Za7R2huFKSOlb3qvPlgPynSB8guaLMj4wYfFvLPbiWwNo9oaGQqZHK0lUGKJ6QtWe9OArjMViJoP1VToIC2MPHMdWDXK4_GQH_uWOYGZB3SH6LhD7eOT6xVvDiNwn7jd_j34WdkgfH2-ai8wCBlU5RLty198JnaxGhNhSPXKj_DVSfiLX2kaXYIlbzHfELE86eyqi_nXZ79t5Pc1IlEgsv9rtXl7acpNJ8mRmCzqnpRP8CZ-hSjMcR5xzEuPx7IYbqd6EH-yUdyVNb53PfwysM-DIAlCzO-K6jNH-cc1GJo5T0kskIHlCEXXK8S5Ck4WM_uVmdm0TxCc-viijNBs_c1feCMSs1CWwwPqP4vxgKouO9zFbyknfS_I6oQyRnHX8CuGdrArpwFFXpchglZ0hxb5ziaOLiYqkVyvn5dFpKLWc4jEw9V3lDsioAwyy0v1Dsdy8q1J28Q59G2D4sPDu4d5apyPAty8VhgjjLJbMFEFWuw4lcZ0NB6mfPAWH43lmDe9pKJ1OF6uT6jCRkafLDvUWEGsnbtt0N0fNONYMcQGJk3TRu9uYhvVhKeZl2elPll39UawYBiIOCgwuP9uRiS5e3_-RatU.%26ch%3DAQEAEAABABQKzo1JkMOvhw6YsDpjN1TqYh4Z4Hr4Km4.%26v%3D3%26pg%3DJZIWPC6T3ZCVZHREV4D4V6YH6Y\n.netflix.com\tTRUE\t/\tTRUE\t1814105766\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABSLssVrfAzje0_yFaCRNqWPVfTnOwzowGI.%26dt%3D1782569766601\n.netflix.com\tTRUE\t/\tFALSE\t1814119270\tOptanonConsent\tisGpcEnabled=0&datestamp=Sun+Jun+28+2026+02%3A01%3A10+GMT%2B0800+(Central+Indonesia+Time)&version=202604.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=4eb1be1c-d90f-4610-8300-5691d20b1e10&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&crTime=1774447549820&AwaitingReconsent=false&isDntEnabled=0\n.netflix.com\tTRUE\t/\tFALSE\t1790359270\tnetflix-sans-bold-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1790359270\tnetflix-sans-normal-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1790359270\tpas\t%7B%22supplementals%22%3A%7B%22muted%22%3Atrue%7D%7D\n`
+    },
+    "Standard": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : Ruth\nEmail          : Francisco.cristian2011@gmail.com\nPhone          : +34629794407\nEmail Verified : Yes\nCountry        : Spain \nCreated        : febrero de 2026\n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Estándar (suscriptor/a extra) | HD | 1 Streams\nPayment Method : N/A\nProfiles       : Ruth\nExpire Date    : 2027-05-29\nDays Left      : 281 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tFALSE\t1787845712\tnetflix-sans-bold-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1787845712\tnetflix-sans-normal-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1795523351\tOptanonAlertBoxClosed\t2025-11-24T12:29:11.254Z\n.netflix.com\tTRUE\t/\tFALSE\t1808598213\tdsca\tcustomer\n.netflix.com\tTRUE\t/\tFALSE\t1809375123\tnfvdid\tBQFmAAEBEKAxAiyqsm8zfqvV7_v6FapgbhA7yc2yVLk6dbbBNYhA-kREBg1000HDjByXaBFIeGWPMhJ7F1cpp-169bHU-1NvWZT7PZ82gQVxH9LF9L18aW2YTMl1fqgGNZv2A-lvxBVj2DY6b-CruDh3cnB7K-UI\nwww.netflix.com\tFALSE\t/\tFALSE\t1780156115\tOTSessionTracking\t87b6a5c0-0104-4e96-a291-092c11350111\n.netflix.com\tTRUE\t/\tTRUE\t1811605710\tNetflixId\tct%3DBgjHlOvcAxL4A8GpSNYgH5XJG_iie9LLBteHXx3sPexZ486Jt3RFWc6DwFkj-8Fxh4gaNAkb3vfg3g6Pq-HfXZ7rs0L93eGe_dZk2Sk62Oc7TMnm7TSZFzrKy3DMHT-N7xRNwAb58ToI_t6J0MhQ8G87P9gSTc1SoVp8uEX01NDozKhcQKCrtAGAk2kH68XLVfx8cOCPoWqGakmG-L8Hly9KJR2Z6G0-u_2LIJDEX_aH2__o95pi82nnc2xV4awTJubhLp1MBEzwwcmeK3pft9rj1zBUxn-YC72-JD5E7xPqQ6j1SLDLQ0oxfCut9c62As_S_mUlh72zA7PDH4PJURjyyv0CdyDGqqwP3q0x3pww8uv5UfvZw0_I95pSKp-Serwm5QilRM-xZdGT0_BZf1b0BNI-maq5Oz8DUvsCHwFYHK3s7HLSyfn8OYt0oYnVZ85i9I7gD7wwHnyi-9tdW9Wwr3r-PiV2R4zjzhBBsu9v_YT8F30XfCyu_PW3BzhqSstTDJ36R56vJPGXfJJYLM3W0UvPTHAv2lQ2wgheS5__7pNMfS2UxV48E7IC_9sCTuc_FKmkcJVJnHI5jMBeEJ70wKekXFia1i_rw5Cncmf5QTDfy5eW316T1JLK9mJ5EMnPi94OFdoCV53Y4jtyio3QNNR2x1VBo-va29GxGz-KwRgGIg4KDOjcEjbqinM-0tm-aQ..%26ch%3DAQEAEAABABTEjUy0b64I4eByqX8DWo6x-B9Zgr9-9E4.%26v%3D3%26pg%3DOHC2FXZHLJEVNFWIIOOHNNLFKM\n.netflix.com\tTRUE\t/\tTRUE\t1811605710\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABRL6PnEsbazeumwnnlIMWbP_LiCx2HCDI4.%26dt%3D1780069708652\n.netflix.com\tTRUE\t/\tTRUE\t1780156112\tgsid\t2d6732b1-8c68-4cbf-ab55-fd69d1c76c9c\n.netflix.com\tTRUE\t/\tFALSE\t1811605716\tOptanonConsent\tisGpcEnabled=0&datestamp=Fri+May+29+2026+17%3A48%3A36+GMT%2B0200+(hora+de+verano+de+Europa+central)&version=202604.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=6067cf02-e7b4-4265-8387-3e3bdd214acd&interactionCount=2&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&AwaitingReconsent=false&intType=1&geolocation=ES%3BMU&prevHadToken=0&isDntEnabled=0\n.netflix.com\tTRUE\t/\tFALSE\t1780071516\tprofilesNewSession\t0\n`
+    },
+    "Standard with Ads": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : oncecb2\nEmail          : oncecb2@gmail.com\nPhone          : +17034994608\nEmail Verified : Yes\nCountry        : United States \nCreated        : febrero de 2026\n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Estándar | HD | 2 Streams\nPayment Method : VERIZON_PI_BILLED\nProfiles       : oncecb2\nExpire Date    : 2027-02-22\nDays Left      : 184 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tFALSE\t1802915666\tnfvdid\tBQFmAAEBEG9kzBvPIHgbGQKgzEQnHEBgfo9a6vkUeRUo5_QDFn5XDxb5GtCyY0EdAUHg_3uH23PUDMIQ_kIfYLsjDbhyhpe2d8oeW8TSB9n9iHO7caXk9DytN-vFLPgl63zkW26I7rbwnsRe9Sq-VKZhONzRr60W\n.netflix.com\tTRUE\t/\tFALSE\t1803161595\tOptanonConsent\tisGpcEnabled=0&datestamp=Fri+Feb+20+2026+17%3A13%3A15+GMT-0500+(hora+est%C3%A1ndar+oriental)&version=202601.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=7ca4870a-ac74-4b4d-b532-444244da0934&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&crTime=1771379666239&AwaitingReconsent=false\n.netflix.com\tTRUE\t/\tFALSE\t1779401595\tnetflix-sans-bold-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tFALSE\t1779401595\tnetflix-sans-normal-3-loaded\ttrue\n.netflix.com\tTRUE\t/\tTRUE\t1803260063\tNetflixId\tct%3DBgjHlOvcAxKLA40VaikV98TMqfbhD-nytZgeJfB8SczikEZDtsjzAHyU3XjropIIddUAmZG3RBIt3L3o30_ThEmcJfTJeAK4CC8u5af29zQkcz6mvmp_E0FbxmIUUXClzphl9LRiptI92j2Bqk1IAv3tOm-KADjD2jhrSDl05y9xs9eFsx9lRYchv_7yR4kSDYKz8qLh8R8FYBqMA5K8HLjFK7W3wrfX5TuPcVjfOzyfaikiSwcxn5yERXduBiq7km1aXSdd9D9MwIyGDTwcjDnufVZtACtCZMBdz3Nk-DsqeAGN94P8XFEpMI5lGo5vTs8Z_79jAr-Hl49lCPiGY32CQ5dKbK9Wjj3x1f6qM_3ICj01d3HMiy6hya2AvYU8JChje-j5lsLULIXYbVylayltUMIokngQ1CYneAgZYYQGFxqtsecFfwclBmcfJOu0txU25EmTqCBDOR_RrIGb7jgxalr6d2oUtetK-hBQ3SskC_z1kbFBYA8M4YfYsVdLxnYEBmh-vpULtgopd1MdqC2ACJmFGAYiDgoMaGKOImYQN3W-kHUo%26ch%3DAQEAEAABABR5L7Fj_U0U9O6_Qqsrf4by1vOVi27AzCU.%26v%3D3%26pg%3DE5G5NKG56JFRNNGDO55CGRYNVI\n.netflix.com\tTRUE\t/\tTRUE\t1803260063\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABRWaD3B0IblpbSnw6c-oF6xrdsoXQkcPg0.%26dt%3D1771724062685\n.netflix.com\tTRUE\t/\tFALSE\t1771731461\tprofilesNewSession\t0\n`
+    },
+    "Premium Extra Member": {
+      phoneData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nUsername       : FOR MAHDI\nEmail          : mahdizoabi343@gmail.com\nEmail Verified : Yes\nCountry        : United States \nCreated        :  2024\n`,
+      personalData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           :  ( ) | UHD | 1 Streams\nProfiles       : FOR MAHDI\nExpire Date    : 2027-07-09\nDays Left      : 322 Days\nExtra Member   : No\n`,
+      records: `[ SESSION COOKIES ]\n-------------------------------------------------\n.netflix.com\tTRUE\t/\tFALSE\t1799126850\tnfvdid\tBQFmAAEBEFbI5juFOip-MUZkLZB_HUBgnMOCdXyi7xgFVPGc6dYpwaalR6TCToB5b0cFQ7yqYgjP1p6TM9hC8ToAaupXaEMGvnOpK1RRr4ebiBBJev0kZA1USM757pYzSHYgGBarSLgl9VPRHWX_PaZ0rCr-__4g\n.netflix.com\tTRUE\t/\tTRUE\t1815157430\tNetflixId\tct%3DBgjHlOvcAxKRBPJWbL5GpqAsANGsG2W8OEr_EH8wwgN2C8Npd71orSmaJYpTOoD9kKmFuo1VqpuRB4bRaoebO3pAOHJcYJCEVz2eRYjFYxw4j66FPtYVoVrQiPhaUxVIB3iXvOP2NJmA9rO7OdzUUPucq0Jnof53lF_WJ7f_Q9WqwwIHZCAAWXZJPbYgI2NWfkDg1C6UdimvfzqzgTWFmuHCTaomNw5uqC8ACPdBtLY9sZstBn1aYFV9FXIxcDryZ33BrCYbe0O1z1RdI9oInAbywCjhYmv7ZqzCqxLirTaKQ5W4Tj0UGi3SpIhFAWD1uEbYKv0kB0HhrOqAcJhp9SJb-rh93FgUqkxiL9ThqzWZUo7N9kJ0lgky6yv584GaCQMtYgeIxraNgiNsJfbNBiullNsXR_6rjHLAjCsGYp2oRKY5-vY-UIxuASZ0VM5KAM4g7XyhX55oOIuQ_1E_c2Kb9XnKGzaX5HNieDRqs_Pai70gUvNl419DwyRXvI5cuVtOzMlqi_MIAcTY0M66aCW12SmvuyhncFi6fmQqxjzX4-DlxL5RjoPn1oJb-P1_yZSL0ALd_w78wOLodp8jit3htwVskpBbkrBh7cmdjvoZ4JrQhmQClu-H7f3jffKxTJH6Nph9Gl4PcOYzEZBwer79xNM8y7JloWlDrvFrZ3SVk3NHkiA8SZwprJWhOf2NMIDNAR-TwdgHyeAYBiIOCgyL76Ewpe5OpdwrKIk.%26ch%3DAQEAEAABABSRwBmGoUMXtTBR1yH4FpQ-d__RegA3Jtw.%26v%3D3%26pg%3DJLEIV2E365E2NALSEPFVYZO7DQ\n.netflix.com\tTRUE\t/\tFALSE\t1815157432\tOptanonConsent\tisGpcEnabled=0&datestamp=Thu+Jul+09+2026+21%3A23%3A52+GMT%2B0300+(%D8%AA%D9%88%D9%82%D9%8A%D8%AA+%D8%A5%D8%B3%D8%B1%D8%A7%D8%A6%D9%8A%D9%84+%D8%A7%D9%84%D8%B5%D9%8A%D9%81%D9%8A)&version=202604.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=23fa1ee6-6b7e-4137-99bf-e6390287cec8&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&prevHadToken=0&isDntEnabled=0\n.netflix.com\tTRUE\t/\tTRUE\t1815157430\tSecureNetflixId\tv%3D3%26mac%3DAQEAEQABABTj0vsmJDOkk26aUUIo_Dm1PwxE2wOfpZI.%26dt%3D1783621430760\n.netflix.com\tTRUE\t/\tFALSE\t1791397432\tpas\t%7B%22supplementals%22%3A%7B%22muted%22%3Atrue%7D%7D\n`
+    }
+  };
+
+  /* ---------- Database Spotify Logs ---------- */
+  const spotifyDatabase = {
+    "Premium Individual": {
+      accountData: `[ ACCOUNT INFO ]\n-------------------------------------------------\nProvider       : Spotify\nCountry        : Indonesia \nLocale         : id-id\nStatus         : ACTIVE_SESSION\n`,
+      subData: `[ SUBSCRIPTION DETAILS ]\n-------------------------------------------------\nPlan           : Premium Family\nRegion         : ID (Jawa Barat)\nProfil Name  : Jxhdx_00/\nExpire Date    : 2027-05-15 01:40:27 WIB\n`,
+      cookies: `[ SESSION COOKIES ]\n-------------------------------------------------\n.spotify.com\tTRUE\t/\tFALSE\t1819651227\tOptanonConsent\tisGpcEnabled=0&datestamp=Mon+Aug+31+2026+01%3A40%3A27+GMT%2B0700+(Western+Indonesia+Time)&version=202601.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&landingPath=NotLandingPage&groups=s00%3A1%2Cf00%3A1%2Cm00%3A1%2Ct00%3A1%2Ci00%3A1%2Cf02%3A1%2Cf11%3A1%2Cm02%3A1%2Ct02%3A1%2Cm03%3A1%2CID01%3A1&AwaitingReconsent=false&geolocation=ID%3BJB\n.spotify.com\tTRUE\t/\tTRUE\t1819651218\tsp_t\t4ac8e928-a8e8-4995-9373-90f533562c40\n#HttpOnly_www.spotify.com\tFALSE\t/\tTRUE\t1788118827\t__Host-sp_csrf_sid\t7cc012c4bab071d1ee140b8f2b1782e807320d8fbfd3300970a43eac3aaf941a\n.spotify.com\tTRUE\t/\tFALSE\t1819650527\tOptanonAlertBoxClosed\t2026-08-30T18:28:47.059Z\n#HttpOnly_.spotify.com\tTRUE\t/\tTRUE\t1819650514\tsp_dc\tAQCYrPzntZrmctf-UwUna-TSUKnH9-hScjKhIDdRdzgEKPJ55uZ5CjCesSnNdfi4ZhyAP-rec7JaO1_-KrvG8fiQSVphR3cktGxvqAD_qlONHtpihZ1EOJqbZiSTiSCIDOtS5zUaiTUyI2QqPIyDpUTi5Z_Hivrh7IhrgchEUpXMnWQUSZhuWGh7snP-ZcJNPoOorZd2Ln8GShkNFok\n.spotify.com\tTRUE\t/\tTRUE\t1793298514\tsp_gaid\t0088fc12e46d81ff1518ab7835e8dd75d02ced45cd3139ee3b1042\n.spotify.com\tTRUE\t/\tTRUE\t1819650514\tsp_key\tc5d23780-105e-446f-b12a-de37397af979\n#HttpOnly_.spotify.com\tTRUE\t/\tTRUE\t1788200873\tsp_landing\thttps%3A%2F%2Fopen.spotify.com%2F\n#HttpOnly_.spotify.com\tTRUE\t/\tTRUE\t1788200873\tsp_landingref\thttps%3A%2F%2Fwww.google.com%2F\n.spotify.com\tTRUE\t/\tTRUE\t1793299227\tsp_last_utm\t%7B%22utm_campaign%22%3A%22your_account%22%2C%22utm_medium%22%3A%22menu%22%2C%22utm_source%22%3A%22spotify%22%7D\n#HttpOnly_.spotify.com\tTRUE\t/\tTRUE\t1788200923\tsp_m\tid-id\n.spotify.com\tTRUE\t/\tTRUE\t1788200873\tsp_new\t1\n`
+    }
+  };
+
+  /* ---------- Database Point Blank (PB) Logs ---------- */
+  const pbDatabase = {
+  
+  "Low": [
+      { userID: "123456ranggq", password: "rangga123", rank: "Private Second Class", exp: "2,086" },
+      { userID: "258kuinshi", password: "slingga007", rank: "Private Second Class", exp: "2,082" },
+      { userID: "4replay03", password: "Robertimz03", rank: "Private Second Class", exp: "3,617" },
+      { userID: "a91115550", password: "Aliacuy08", rank: "Private First Class", exp: "8,255" },
+      { userID: "aabbccdd99", password: "aabbccdd99", rank: "Private First Class", exp: "6,571" },
+      { userID: "adharimasyii", password: "Getamped2", rank: "Private", exp: "440" },
+      { userID: "ahmad080908", password: "ahmadani1510", rank: "Private Second Class", exp: "2,998" },
+      { userID: "akiosawai", password: "Vadis12111994", rank: "Corporal", exp: "9,575" },
+      { userID: "alfisyakyla", password: "syahira007", rank: "Private Second Class", exp: "3,584" },
+      { userID: "allennardo", password: "Doraemon12", rank: "Private", exp: "1,548" },
+      { userID: "alvingoblok", password: "alvinlis123", rank: "Private", exp: "291" },
+      { userID: "as.solution", password: "kawaii205", rank: "Private", exp: "830" },
+      { userID: "astrokenzie", password: "Bekasi2006", rank: "Private Second Class", exp: "2,640" },
+      { userID: "bayannaufal", password: "uni123456", rank: "Private First Class", exp: "6,337" },
+      { userID: "bayumiqbal", password: "bayuankrdx83", rank: "Private Second Class", exp: "3,356" },
+      { userID: "bella222", password: "bella222", rank: "Private Second Class", exp: "3,856" },
+      { userID: "cheppyx", password: "Kamozink12", rank: "Private", exp: "0" },
+      { userID: "clerenk", password: "clerenk02", rank: "Private", exp: "0" },
+      { userID: "dadkers", password: "sy4hri4l28", rank: "Private", exp: "412" },
+      { userID: "dalton182", password: "eaa108014", rank: "Private Second Class", exp: "2,872" },
+      { userID: "daristra", password: "d4ristr4", rank: "Private Second Class", exp: "2,146" },
+      { userID: "davidsiboro", password: "siboro0345", rank: "Private", exp: "0" },
+      { userID: "ditecthif", password: "soleh941982", rank: "Private", exp: "0" },
+      { userID: "dopek123", password: "dopek123", rank: "Private", exp: "1,680" },
+      { userID: "doraimon123", password: "doraimon123", rank: "Private Second Class", exp: "3,066" },
+      { userID: "excalibur22", password: "excalibur22", rank: "Private", exp: "0" },
+      { userID: "fadhilrafiii", password: "hartawan123", rank: "Private First Class", exp: "7,942" },
+      { userID: "faqihhd", password: "oktober07", rank: "Private", exp: "1,134" },
+      { userID: "fvru111", password: "ANONYMOUs11", rank: "Private Second Class", exp: "4,239" },
+      { userID: "GhostsForce", password: "Megarobo1", rank: "Private", exp: "1,626" },
+      { userID: "GilangHabib", password: "habib1402", rank: "Private Second Class", exp: "3,092" },
+      { userID: "hafidzjt354", password: "jokam354", rank: "Private", exp: "542" },
+      { userID: "hamdanvicky", password: "grimlaks2687", rank: "Private", exp: "454" },
+      { userID: "hantuluthu", password: "luthuabis1", rank: "Private Second Class", exp: "4,274" },
+      { userID: "hexulury", password: "aqwoke12345", rank: "Private Second Class", exp: "3,817" },
+      { userID: "heyhey12345", password: "heyhey12345", rank: "Private Second Class", exp: "3,024" },
+      { userID: "hfizhakbr", password: "hafizakbar0", rank: "Private", exp: "594" },
+      { userID: "HiSpeed007", password: "jasonnet90", rank: "Private", exp: "1,902" },
+      { userID: "hzroel", password: "150595msb", rank: "Private Second Class", exp: "4,462" },
+      { userID: "ilhamdwi324", password: "ankmanja01", rank: "Private First Class", exp: "6,535" },
+      { userID: "jansen_goldy", password: "jansen995", rank: "Corporal", exp: "9,412" },
+      { userID: "jkajuya", password: "ramadhan31", rank: "Private Second Class", exp: "4,373" },
+      { userID: "kameswara26", password: "26april1996", rank: "Private Second Class", exp: "3,944" },
+      { userID: "karin000", password: "karin000", rank: "Private", exp: "814" },
+      { userID: "Kechild", password: "ggALVIN321", rank: "Private", exp: "1,064" },
+      { userID: "keisyahghanie", password: "22April2004", rank: "Private", exp: "160" },
+      { userID: "kenzojovani", password: "kenzoo23", rank: "Private", exp: "550" },
+      { userID: "kitanokawaii", password: "prasetyo1155", rank: "Private Second Class", exp: "2,929" },
+      { userID: "korneto100", password: "panjul789", rank: "Private Second Class", exp: "3,406" },
+      { userID: "kupox2", password: "pokemon13", rank: "Private", exp: "136" },
+      { userID: "leotari21", password: "haikal123", rank: "Private First Class", exp: "7,954" },
+      { userID: "lufitogaski", password: "kojel12345", rank: "Private First Class", exp: "8,622" },
+      { userID: "lyponus", password: "MaunyaSih388", rank: "Private", exp: "1,420" },
+      { userID: "marvell126", password: "bJ.EG~TA2Ekxx.~", rank: "Private Second Class", exp: "2,478" },
+      { userID: "minecraft66", password: "minecraft66", rank: "Private", exp: "1,087" },
+      { userID: "nafi24", password: "anankaran4", rank: "Private", exp: "901" }
+    ],
+    
+    "Medium": [
+      { userID: "123cvb456", password: "123cvb456", rank: "Corporal", exp: "13,400" },
+      { userID: "23savage", password: "23savage", rank: "Staff Sergeant Grade 1", exp: "21,311" },
+      { userID: "aangbolar", password: "farhanj123", rank: "Staff Sergeant Grade 1", exp: "28,075" },
+      { userID: "aberprayogi", password: "10april1983", rank: "Staff Sergeant Grade 2", exp: "31,349" },
+      { userID: "aderl1", password: "adesajo12", rank: "Staff Sergeant Grade 1", exp: "24,858" },
+      { userID: "aldhigandia", password: "f5312yta", rank: "Sergeant", exp: "19,631" },
+      { userID: "alittriguna", password: "gusalit123", rank: "Staff Sergeant Grade 3", exp: "51,632" },
+      { userID: "ariejuos", password: "efanti99", rank: "Corporal", exp: "12,464" },
+      { userID: "averio", password: "belimbing18", rank: "Staff Sergeant Grade 2", exp: "38,622" },
+      { userID: "azlanarafi", password: "azlan123", rank: "Staff Sergeant Grade 3", exp: "48,936" },
+      { userID: "bangedwin", password: "sby230207", rank: "Sergeant 1st Class Grade 2", exp: "82,996" },
+      { userID: "bojes_0686", password: "yuni1252", rank: "Sergeant 1st Class Grade 3", exp: "99,727" },
+      { userID: "bugaresta", password: "06021996@bandung", rank: "Sergeant", exp: "16,675" },
+      { userID: "dark2361", password: "veron238", rank: "Sergeant", exp: "14,938" },
+      { userID: "debio21", password: "badboy123", rank: "Sergeant", exp: "14,274" },
+      { userID: "dgelcofa", password: "daffa3lc0f4", rank: "Staff Sergeant Grade 2", exp: "33,051" },
+      { userID: "Dian1711", password: "Ganteng123", rank: "Sergeant 1st Class Grade 3", exp: "92,259" },
+      { userID: "dimasegitiga", password: "tzkmx9thu", rank: "Staff Sergeant Grade 1", exp: "23,035" },
+      { userID: "dua1996", password: "duaduaaen2", rank: "Sergeant", exp: "16,557" },
+      { userID: "email1999", password: "email1999", rank: "Sergeant", exp: "14,529" },
+      { userID: "enrico1988", password: "enrico1988", rank: "Sergeant", exp: "18,091" },
+      { userID: "fadlandeza", password: "muhammad2002", rank: "Sergeant 1st Class Grade 1", exp: "57,562" },
+      { userID: "fathir4118", password: "FATHIR4118", rank: "Staff Sergeant Grade 2", exp: "36,988" },
+      { userID: "Faurel0w", password: "faurel22122008", rank: "Staff Sergeant Grade 2", exp: "37,967" },
+      { userID: "fawzila22", password: "junior90", rank: "Sergeant 1st Class Grade 1", exp: "68,189" },
+      { userID: "gamergaming1772", password: "l3m4r1123", rank: "Staff Sergeant Grade 1", exp: "23,982" },
+      { userID: "ghostly577", password: "ghozi123", rank: "Sergeant 1st Class Grade 3", exp: "99,933" },
+      { userID: "giblar123", password: "giblar123", rank: "Sergeant 1st Class Grade 1", exp: "59,058" },
+      { userID: "gibranh283", password: "mancing1", rank: "Staff Sergeant Grade 2", exp: "38,820" },
+      { userID: "googlevine", password: "swadaya93", rank: "Sergeant 1st Class Grade 1", exp: "62,823" },
+      { userID: "granger777", password: "granger777", rank: "Sergeant", exp: "14,055" },
+      { userID: "hans1000", password: "hans1000", rank: "Staff Sergeant Grade 3", exp: "52,602" },
+      { userID: "HendraBP12", password: "hendrabudi12", rank: "Sergeant", exp: "17,804" },
+      { userID: "hitch2tro", password: "tuesyat222", rank: "Staff Sergeant Grade 1", exp: "29,291" },
+      { userID: "ibnuyos46", password: "ibnusina123", rank: "Sergeant 1st Class Grade 1", exp: "65,699" },
+      { userID: "JAYAPRANA018", password: "018suwawa", rank: "Corporal", exp: "13,278" },
+      { userID: "junior099812", password: "tamanrama123", rank: "Sergeant", exp: "15,814" },
+      { userID: "kelekkecut303", password: "0303099141ia", rank: "Sergeant", exp: "17,197" },
+      { userID: "kihisa04", password: "rayhank80", rank: "Corporal", exp: "11,004" },
+      { userID: "killdanzo121", password: "t220301t", rank: "Sergeant 1st Class Grade 1", exp: "65,099" },
+      { userID: "knightlebay", password: "adam150898", rank: "Sergeant 1st Class Grade 1", exp: "60,517" },
+      { userID: "kolotbaho", password: "pahlawan123", rank: "Corporal", exp: "10,198" },
+      { userID: "Kumoyak", password: "Waryati031016", rank: "Staff Sergeant Grade 3", exp: "44,108" },
+      { userID: "kyriewashere", password: "010902Ardi", rank: "Staff Sergeant Grade 1", exp: "26,972" },
+      { userID: "lvlup000zzxx", password: "MeiMisaki411", rank: "Staff Sergeant Grade 3", exp: "46,048" },
+      { userID: "matlovegebi", password: "salak84madiun", rank: "Sergeant 1st Class Grade 1", exp: "61,117" },
+      { userID: "minecraft191", password: "minecraft191", rank: "Sergeant", exp: "18,575" },
+      { userID: "mooyaa21", password: "arri211191", rank: "Sergeant", exp: "16,732" },
+      { userID: "mrifqi0400", password: "Aptx4869", rank: "Sergeant 1st Class Grade 2", exp: "73,849" },
+      { userID: "mukatua90", password: "cibinong90", rank: "Sergeant 1st Class Grade 2", exp: "85,437" },
+      { userID: "mvikram", password: "zuliani88", rank: "Staff Sergeant Grade 2", exp: "30,317" },
+      { userID: "nelson012", password: "nelson012", rank: "Staff Sergeant Grade 1", exp: "23,769" }
+    ],
+    "High": [
+      { userID: "abimaalfan12", password: "fernando123", rank: "Brigadier", exp: "14,140,021" },
+      { userID: "ahmadfuadie", password: "fuadie0023", rank: "Master Sergeant Grade 5", exp: "264,998" },
+      { userID: "aldersdel", password: "alachef123", rank: "Master Sergeant Grade 4", exp: "253,524" },
+      { userID: "andi4affandi", password: "affandi123", rank: "2nd Lieutenant Grade 3", exp: "422,032" },
+      { userID: "andreas666666", password: "andreas666666", rank: "Master Sergeant Grade 1", exp: "134,750" },
+      { userID: "anugrahjr05", password: "anugrahpratama1", rank: "Major Grade 4", exp: "2,164,947" },
+      { userID: "azad3ms", password: "Ikhwanmuma98", rank: "Major Grade 1", exp: "1,650,668" },
+      { userID: "azizngok112", password: "ngokngok12", rank: "Captain Grade 4", exp: "1,330,181" },
+      { userID: "azuka223", password: "kazima123", rank: "Sergeant 1st Class Grade 4", exp: "117,844" },
+      { userID: "billydamas21", password: "BillyDamas234", rank: "2nd Lieutenant Grade 3", exp: "409,728" },
+      { userID: "bulldogedan", password: "n3m3sh1s", rank: "2nd Lieutenant Grade 2", exp: "388,020" },
+      { userID: "daffizzy", password: "789Daffa", rank: "Sergeant 1st Class Grade 4", exp: "126,501" },
+      { userID: "dikytaruna25", password: "Dd252812D", rank: "Captain Grade 3", exp: "1,163,093" },
+      { userID: "disec1337", password: "3ncrypTed_Pass", rank: "2nd Lieutenant Grade 4", exp: "455,966" },
+      { userID: "egijohan", password: "Nandang99", rank: "Lieutenant Colonel Grade 2", exp: "3,440,616" },
+      { userID: "ekaalam03", password: "ekaalam01", rank: "Master Sergeant Grade 1", exp: "147,341" },
+      { userID: "eway437", password: "110797eway", rank: "2nd Lieutenant Grade 2", exp: "371,764" },
+      { userID: "faisalfahni", password: "Mancimahi15", rank: "Major Grade 5", exp: "2,508,573" },
+      { userID: "fbspro070101", password: "08993568253abdi", rank: "Master Sergeant Grade 1", exp: "158,463" },
+      { userID: "gaffarrr", password: "gustisky3", rank: "1st Lieutenant Grade 1", exp: "561,312" },
+      { userID: "GraveSkull", password: "96787475asd", rank: "2nd Lieutenant Grade 1", exp: "326,011" },
+      { userID: "havelock", password: "sepeda0812", rank: "Major Grade 1", exp: "1,526,629" },
+      { userID: "heyhey12", password: "heyhey12", rank: "2nd Lieutenant Grade 1", exp: "334,244" },
+      { userID: "ilhamhrnd", password: "ilhamhernadi2013", rank: "Master Sergeant Grade 4", exp: "249,349" },
+      { userID: "javier_zam", password: "jakara071", rank: "1st Lieutenant Grade 5", exp: "895,462" },
+      { userID: "joy0708", password: "sanjaya182", rank: "Master Sergeant Grade 2", exp: "169,850" },
+      { userID: "kibord990", password: "yasmat1932", rank: "Master Sergeant Grade 2", exp: "165,289" },
+      { userID: "klxmowser", password: "fajri88nurul", rank: "1st Lieutenant Grade 3", exp: "699,923" },
+      { userID: "kodokxo", password: "jamesalvin12", rank: "Master Sergeant Grade 4", exp: "227,066" },
+      { userID: "logdaffa", password: "amala1946", rank: "2nd Lieutenant Grade 3", exp: "403,968" },
+      { userID: "mizuhashi125", password: "houtarou12", rank: "Master Sergeant Grade 3", exp: "208,235" },
+      { userID: "momogi3rd", password: "skywalkers96", rank: "2nd Lieutenant Grade 1", exp: "393,341" },
+      { userID: "msyurqan", password: "msyurqan08", rank: "Master Sergeant Grade 5", exp: "261,216" },
+      { userID: "nagatsukatoki", password: "yoga123asd12", rank: "Colonel Grade 2", exp: "5,513,262" },
+      { userID: "nicolaus16", password: "august123", rank: "Master Sergeant Grade 4", exp: "233,956" }
+    ]
+  };
+
+  /* ---------- Database TikTok Logs ---------- */
+  const tiktokDatabase = {
+
+  "HighFollowers": [
+      {
+        name: "??????",
+        username: "??????",
+        following: "????",
+        followers: "????",
+        likes: "?????",
+        cookies: `.www.tiktok.com\????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????`
+      }
+    ],
+    "LowFollowers": [
+      {
+        name: "Shakur Karg",
+        username: "2exclusive._shakur",
+        following: "9,022",
+        followers: "609",
+        likes: "549",
+        cookies: `.www.tiktok.com\tTRUE\t/\tTRUE\t1790289288\tdelay_guest_mode_vid\t5\n.tiktok.com\tTRUE\t/\tTRUE\t1769553296\tpassport_csrf_token\tc6ceb2cc9eeff67a8b1cf04cb736f5b6\n.tiktok.com\tTRUE\t/\tTRUE\t1769553296\tpassport_csrf_token_default\tc6ceb2cc9eeff67a8b1cf04cb736f5b6\n.tiktok.com\tTRUE\t/\tTRUE\t0\ttt_csrf_token\thCnV1G2A-e0ScTC95jExZabCqt6CRDVzJDhE\n.tiktok.com\tTRUE\t/\tTRUE\t1769553401\tcmpl_token\tAgQQAPNSF-RO0rB7xJO5ZV0_80u6RcNJ_4zZYKMrOA\n.tiktok.com\tTRUE\t/\tFALSE\t1795905399\td_ticket\t86a8e1aeddaea86c275d0d7bb3d2ffef8b902\nwww.tiktok.com\tFALSE\t/\tFALSE\t1772145400\tlast_login_method\tgoogle\n.tiktok.com\tTRUE\t/\tTRUE\t1769553401\tmulti_sids\t6936997204688602118%3A562d3cdeff490f4a0421ccb200b7a3c7\n.tiktok.com\tTRUE\t/\tFALSE\t1766961401\tpassport_auth_status\tccb3a72ffd428e119d3365e5e1099474%2C\n.tiktok.com\tTRUE\t/\tTRUE\t1766961401\tpassport_auth_status_ss\tccb3a72ffd428e119d3365e5e1099474%2C\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tsessionid\t562d3cdeff490f4a0421ccb200b7a3c7\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tsessionid_ss\t562d3cdeff490f4a0421ccb200b7a3c7\n.tiktok.com\tTRUE\t/\tTRUE\t1795473401\tsid_guard\t562d3cdeff490f4a0421ccb200b7a3c7%7C1764369401%7C15552000%7CWed%2C+27-May-2026+22%3A36%3A41+GMT\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tsid_tt\t562d3cdeff490f4a0421ccb200b7a3c7\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tsid_ucp_v1\t1.0.1-KGMxNDEyYjA5MWRhNjRlYjQ5ZTdjOWVhYmY5OTFmN2I4OTUwMGRlYmYKIQiGiN6Kw8bKomAQ-ceoyQYYswsgDDCF1ZSCBjgIQBJIBBAEGgd1c2Vhc3Q1IiA1NjJkM2NkZWZmNDkwZjRhMDQyMWNjYjIwMGI3YTNjNzJOCiCA1mHt_nbLLtfoOfNtCAhmFtNcm3ArPQdGtHxoI6z-BRIgxveBDLQj1UlmhUpJB5ZrcivjzGRdqZGFh57N9HhHFjcYAyIGdGlrdG9r\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tssid_ucp_v1\t1.0.1-KGMxNDEyYjA5MWRhNjRlYjQ5ZTdjOWVhYmY5OTFmN2I4OTUwMGRlYmYKIQiGiN6Kw8bKomAQ-ceoyQYYswsgDDCF1ZSCBjgIQBJIBBAEGgd1c2Vhc3Q1IiA1NjJkM2NkZWZmNDkwZjRhMDQyMWNjYjIwMGI3YTNjNzJOCiCA1mHt_nbLLtfoOfNtCAhmFtNcm3ArPQdGtHxoI6z-BRIgxveBDLQj1UlmhUpJB5ZrcivjzGRdqZGFh57N9HhHFjcYAyIGdGlrdG9r\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\ttt_session_tlb_tag\tsttt%7C4%7CVi083v9JD0oEIcyyALejx__________0YuJLEwKjTuthDamBeUgtS9r6TNjj9zvAfksOO_uBnWs%3D\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tuid_tt\te601af675b16721570aa4f69e30b078193bc781eefdc3dd924a4da29aa51429b\n.tiktok.com\tTRUE\t/\tTRUE\t1779921401\tuid_tt_ss\te601af675b16721570aa4f69e30b078193bc781eefdc3dd924a4da29aa51429b\n.tiktok.com\tTRUE\t/\tFALSE\t0\tcsrfToken\tV8zzOu6e-1MH1Wvimy8hqMk8TW_noCUfpozo\n.tiktok.com\tTRUE\t/\tFALSE\t1795906499\todin_tt\tbca08a2a59b436c9c594ee89366e090614ed88d826266396f93c2db32020fc0d809c63bc31bd0f9b3fcb77dbfcb106a5279085fa1532c4bf3730d85838e0018fad94350d8e499223ceeac50f59ebc18e\n.www.tiktok.com\tTRUE\t/\tFALSE\t0\tpassport_fe_beating_status\ttrue\nwebcast.us.tiktok.com\tFALSE\t/\tTRUE\t0\tcsrf_session_id\t22dfa169cc7d8a4d11a2eb439a97c078\n.tiktok.com\tTRUE\t/\tTRUE\t0\ts_v_web_id\tverify_mijfypa6_IrRU4bC3_wa9V_4zGd_Aw4N_kaZFwliLngKx\n.tiktok.com\tTRUE\t/\tFALSE\t1796018673\ttt-target-idc-sign\tEk5voT7mjm0b_QI50su2NiePeP2-xfXUAGCiM0jMeI7k6y5pdF97Wz9IdpN_gWMZjApUu_IaH7fH0h0nDDOIM8NeUR4sGw0jeYBVY7IoqBkjMREf8Ojy_kWxZuXqQ3L-YaxCl3mHYtkTvJLUjuxOFKmzHFBHrq9RziylA0sdCDiUR87k-ClAlV5kxWwoofFn53W6iFLrPOtE2qaEYAyFrvD5-IQ-IcZ8ibYdn4A0KUIQQ_LHJL2CtmV3nKWX2ny5vXwK2C-MxT260VbZQSYOpoKNEC2Evu0U3a1DaDa7mZz4s5fVr2tfoU_qGUQM5UG1ITHfSiJjYcbZZPK7hcutvwp-HaJ9opIrxEYUbG94GUrd11GVf8s-UdzbjcdBC2VD8-O51lKtsQVmWuloH8XzLZzZsob1YefHfNx-X85JmGCdVMfVVVq0V-HtBqwiCiTTRgw-U-M_llMnCvsXpZm7gQCpFU5UH5UsP1Gubkuhpbv3Vy0mChaFFAPo1Hhw2eLh\n.www.tiktok.com\tTRUE\t/\tTRUE\t1765087827\tperf_feed_cache\t{%22expireTimestamp%22:1764655200000%2C%22itemIds%22:[%227576070968183917879%22%2C%227561265891535621390%22%2C%227576368615084133687%22]}\n.tiktok.com\tTRUE\t/\tFALSE\t1779921401\tstore-country-code\tus\n.tiktok.com\tTRUE\t/\tFALSE\t1779921401\tstore-country-code-src\tuid\n.tiktok.com\tTRUE\t/\tFALSE\t1779921401\tstore-country-sign\tMEIEDCTGtZeDr5UswWvBhwQgoEZ2vbz02It38O0cPaPXfaT2SvqAUflmSAH2F56kXwMEEOkM8begrukn4V0m3ti4aTU\n.tiktok.com\tTRUE\t/\tFALSE\t1779921401\tstore-idc\tuseast5\n.tiktok.com\tTRUE\t/\tFALSE\t1779921401\ttt-target-idc\tuseast5\nwww.tiktok.com\tFALSE\t/\tFALSE\t1772259925\tmsToken\t_G8VPtMS3Hl_psp3KLh4WJiGiQcM0I0xETcn87dIP2cWUN_gaaT_pvdV34sWjOzqh0wrm_WDKfCw7rO8bA2x3rY0GGgLF-6BtdXiZF4VBgGawcwCp05U1migYmzefkF9lsuuluhI\n.tiktok.com\tTRUE\t/\tTRUE\t1765504060\tmsToken\t3MibmsPbmGbgWDccx98wXSvPV9FuHuatdrD4CSI-X-WNemkMd-oLzPb2Q605MOBDMEjxJ7kJB7_2w2r5rkM_WwW7l7BsK4z1Xh9FEN5Wk0T9lB3B-bezh_CN8TsTTn_wbzrkR8lp\n.www.tiktok.com\tTRUE\t/\tTRUE\t1790560058\ttiktok_webapp_theme\tdark\n.www.tiktok.com\tTRUE\t/\tTRUE\t1790560058\ttiktok_webapp_theme_source\tauto\n.tiktok.com\tTRUE\t/\tTRUE\t1780192058\ttt_chain_token\tw/HptqybygdQqDG20zdyPg==\n.tiktok.com\tTRUE\t/\tTRUE\t1796176060\tttwid\t1%7CUM7HmU3mAy6JlZwv_HXJmgqxA6W4TOJLtNOgXZtOxw8%7C1764640059%7Cf19577ee27bde44159432d93f8a8d9c2dde4997a85bbd14a20c0c5c5874b5b81`
+      }
+    ]
+  };
+
+  /* ---------- Trace System Logic & Animated Output Stream ---------- */
+  let currentMode = 'phone';
+  let activeTimer = null;
+
+  const out = document.getElementById('out');
+  const phoneIn = document.getElementById('phone');
+  const netflixSelect = document.getElementById('netflixSelect');
+  const spotifySelect = document.getElementById('spotifySelect');
+  const pbSelect = document.getElementById('pbSelect');
+  const tiktokSelect = document.getElementById('tiktokSelect');
+  const traceBtn = document.getElementById('traceBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const inputLabel = document.getElementById('inputLabel');
+
+  const tabPhone = document.getElementById('tabPhone');
+  const tabDana = document.getElementById('tabDana');
+  const tabNetflix = document.getElementById('tabNetflix');
+  const tabSpotify = document.getElementById('tabSpotify');
+  const tabPb = document.getElementById('tabPb');
+  const tabTiktok = document.getElementById('tabTiktok');
+
+  function switchTab(mode) {
+    if (activeTimer) clearInterval(activeTimer);
+    currentMode = mode;
+    out.innerHTML = '';
+    startMusic();
+    
+    // Hide All Inputs & Copy Btn
+    phoneIn.style.display = 'none';
+    netflixSelect.style.display = 'none';
+    spotifySelect.style.display = 'none';
+    pbSelect.style.display = 'none';
+    tiktokSelect.style.display = 'none';
+    copyBtn.style.display = 'none';
+
+    // Unactive All Tabs
+    tabPhone.classList.remove('active');
+    tabDana.classList.remove('active');
+    tabNetflix.classList.remove('active');
+    tabSpotify.classList.remove('active');
+    tabPb.classList.remove('active');
+    tabTiktok.classList.remove('active');
+
+    if (mode === 'phone') {
+      tabPhone.classList.add('active');
+      inputLabel.innerText = 'Phone';
+      phoneIn.style.display = 'block';
+      phoneIn.placeholder = '+62...';
+      phoneIn.value = '+6285264688003';
+    } else if (mode === 'dana') {
+      tabDana.classList.add('active');
+      inputLabel.innerText = 'DANA';
+      phoneIn.style.display = 'block';
+      phoneIn.placeholder = '+62...';
+      phoneIn.value = '+6282220682474';
+      copyBtn.style.display = 'inline-block';
+    } else if (mode === 'netflix') {
+      tabNetflix.classList.add('active');
+      inputLabel.innerText = 'Plan';
+      netflixSelect.style.display = 'block';
+      copyBtn.style.display = 'inline-block';
+    } else if (mode === 'spotify') {
+      tabSpotify.classList.add('active');
+      inputLabel.innerText = 'Plan';
+      spotifySelect.style.display = 'block';
+      copyBtn.style.display = 'inline-block';
+    } else if (mode === 'pb') {
+      tabPb.classList.add('active');
+      inputLabel.innerText = 'Category';
+      pbSelect.style.display = 'block';
+    } else if (mode === 'tiktok') {
+      tabTiktok.classList.add('active');
+      inputLabel.innerText = 'Category';
+      tiktokSelect.style.display = 'block';
+      copyBtn.style.display = 'inline-block';
+    }
+  }
+  
+  tabPhone.onclick = () => switchTab('phone');
+  tabDana.onclick = () => switchTab('dana');
+  tabNetflix.onclick = () => switchTab('netflix');
+  tabSpotify.onclick = () => switchTab('spotify');
+  tabPb.onclick = () => switchTab('pb');
+  tabTiktok.onclick = () => switchTab('tiktok');
+
+  function printStreamText(fullText) {
+    if (activeTimer) clearInterval(activeTimer);
+    out.innerText = '';
+    const lines = fullText.split('\n');
+    let index = 0;
+
+    activeTimer = setInterval(() => {
+      if (index < lines.length) {
+        out.innerText += lines[index] + '\n';
+        out.scrollTop = out.scrollHeight;
+        index++;
+      } else {
+        clearInterval(activeTimer);
+        activeTimer = null;
+      }
+    }, 20);
+  }
+
+  function runTrace() {
+    startMusic();
+    let q = '';
+    if (currentMode === 'phone' || currentMode === 'dana') q = phoneIn.value.trim();
+    else if (currentMode === 'netflix') q = netflixSelect.value;
+    else if (currentMode === 'spotify') q = spotifySelect.value;
+    else if (currentMode === 'pb') q = pbSelect.value;
+    else if (currentMode === 'tiktok') q = tiktokSelect.value;
+
+    if (!q) {
+      out.innerHTML = `<span class="marker">[!] Masukkan query...</span>`;
+      return;
+    }
+
+    out.innerHTML = `<span class="marker">[ SCANNING DATABASE (${currentMode.toUpperCase()})... ]</span>`;
+
+    setTimeout(() => {
+      let resultLog = "";
+      
+      if (currentMode === 'phone') {
+        if (!phoneDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data nomor tidak ditemukan.</span>`; return; }
+        const data = phoneDatabase[q];
+        resultLog = `=================================================\n              SYSTEM TRACE LOG (PHONE)\n=================================================\n${data.phoneData}\n${data.personalData}\n${data.records}=================================================\n                END OF REPORT\n=================================================`;
+      
+      } else if (currentMode === 'dana') {
+        if (!danaDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data DANA Logs untuk nomor ini tidak ditemukan.</span>`; return; }
+        resultLog = `=================================================\n              DANA DATABASE LOGS\n=================================================\n${danaDatabase[q]}\n=================================================\n                END OF REPORT\n=================================================`;
+
+      } else if (currentMode === 'netflix') {
+        if (!netflixDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data paket tidak ditemukan.</span>`; return; }
+        const data = netflixDatabase[q];
+        resultLog = `=================================================\n              SYSTEM TRACE LOG (NETFLIX)\n=================================================\n${data.phoneData}\n${data.personalData}\n${data.records}=================================================\n                END OF REPORT\n=================================================`;
+      
+      } else if (currentMode === 'spotify') {
+        if (!spotifyDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data paket tidak ditemukan.</span>`; return; }
+        const data = spotifyDatabase[q];
+        resultLog = `=================================================\n              SYSTEM TRACE LOG (SPOTIFY)\n=================================================\n${data.accountData}\n${data.subData}\n${data.cookies}=================================================\n                END OF REPORT\n=================================================`;
+
+      } else if (currentMode === 'pb') {
+        if (!pbDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data PB Logs tidak ditemukan.</span>`; return; }
+        const list = pbDatabase[q];
+        resultLog = `=================================================\n        POINT BLANK DATABASE LOGS (${q.toUpperCase()} EXP)\n=================================================\nFound Total: ${list.length} Accounts\n\n`;
+        
+        list.forEach((item, idx) => {
+          resultLog += `[ ACCOUNT #${idx+1} ]\nUser ID  : ${item.userID}\nPassword : ${item.password}\nRank     : ${item.rank}\nTotal EXP: ${item.exp}\n-------------------------------------------------\n`;
+        });
+        resultLog += `=================================================\n                END OF REPORT\n=================================================`;
+
+      } else if (currentMode === 'tiktok') {
+        if (!tiktokDatabase[q]) { out.innerHTML = `<span class="marker">[!] Data TikTok Logs tidak ditemukan.</span>`; return; }
+        const list = tiktokDatabase[q];
+        resultLog = `=================================================\n        TIKTOK DATABASE LOGS (${q.toUpperCase()})\n=================================================\nFound Total: ${list.length} Accounts\n\n`;
+
+        list.forEach((item, idx) => {
+          resultLog += `[ ACCOUNT #${idx+1} ]\nDisplay Name : ${item.name}\nUsername     : @${item.username}\nMengikuti    : ${item.following}\nPengikut     : ${item.followers}\nSuka         : ${item.likes}\n\n[ COOKIES DATA ]\n${item.cookies}\n-------------------------------------------------\n`;
+        });
+        resultLog += `=================================================\n                END OF REPORT\n=================================================`;
+      }
+
+      printStreamText(resultLog);
+    }, 400);
+  }
+
+  traceBtn.onclick = runTrace;
+  phoneIn.onkeydown = function(e) { if(e.key === 'Enter') runTrace(); };
+  clearBtn.onclick = function() { 
+    if (activeTimer) clearInterval(activeTimer);
+    out.innerHTML=''; 
+    phoneIn.value=''; 
+    phoneIn.focus(); 
+  };
+
+  copyBtn.onclick = function() {
+    const textToCopy = out.innerText;
+    if (!textToCopy || textToCopy.startsWith('[!]')) return;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      const origText = copyBtn.innerText;
+      copyBtn.innerText = 'COPIED!';
+      setTimeout(() => { copyBtn.innerText = origText; }, 1500);
+    }).catch(() => {
+      alert('Gagal menyalin teks.');
+    });
+  };
+
+  switchTab('phone');
+})();
+</script>
+</body>
+</html>
+  
